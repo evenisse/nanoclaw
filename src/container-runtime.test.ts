@@ -72,7 +72,7 @@ describe('ensureContainerRuntimeRunning', () => {
 
     expect(mockExecSync).toHaveBeenCalledTimes(1);
     expect(mockExecSync).toHaveBeenCalledWith(
-      `${CONTAINER_RUNTIME_BIN} system status`,
+      `${CONTAINER_RUNTIME_BIN} info`,
       { stdio: 'pipe' },
     );
     expect(logger.debug).toHaveBeenCalledWith(
@@ -80,12 +80,12 @@ describe('ensureContainerRuntimeRunning', () => {
     );
   });
 
-  it('auto-starts when system status fails', () => {
-    // First call (system status) fails
+  it('auto-starts via systemd when docker info fails', () => {
+    // First call (docker info) fails
     mockExecSync.mockImplementationOnce(() => {
       throw new Error('not running');
     });
-    // Second call (system start) succeeds
+    // Second call (systemctl start docker) succeeds
     mockExecSync.mockReturnValueOnce('');
 
     ensureContainerRuntimeRunning();
@@ -93,7 +93,7 @@ describe('ensureContainerRuntimeRunning', () => {
     expect(mockExecSync).toHaveBeenCalledTimes(2);
     expect(mockExecSync).toHaveBeenNthCalledWith(
       2,
-      `${CONTAINER_RUNTIME_BIN} system start`,
+      'sudo systemctl start docker',
       { stdio: 'pipe', timeout: 30000 },
     );
     expect(logger.info).toHaveBeenCalledWith('Container runtime started');
@@ -114,21 +114,16 @@ describe('ensureContainerRuntimeRunning', () => {
 // --- cleanupOrphans ---
 
 describe('cleanupOrphans', () => {
-  it('stops orphaned nanoclaw containers from JSON output', () => {
-    // Apple Container ls returns JSON
-    const lsOutput = JSON.stringify([
-      { status: 'running', configuration: { id: 'nanoclaw-group1-111' } },
-      { status: 'stopped', configuration: { id: 'nanoclaw-group2-222' } },
-      { status: 'running', configuration: { id: 'nanoclaw-group3-333' } },
-      { status: 'running', configuration: { id: 'other-container' } },
-    ]);
-    mockExecSync.mockReturnValueOnce(lsOutput);
+  it('stops orphaned nanoclaw containers from docker ps output', () => {
+    // Docker ps returns newline-separated names
+    const psOutput = 'nanoclaw-group1-111\nnanoclaw-group3-333\nother-container\n';
+    mockExecSync.mockReturnValueOnce(psOutput);
     // stop calls succeed
     mockExecSync.mockReturnValue('');
 
     cleanupOrphans();
 
-    // ls + 2 stop calls (only running nanoclaw- containers)
+    // ps + 2 stop calls (only nanoclaw- containers)
     expect(mockExecSync).toHaveBeenCalledTimes(3);
     expect(mockExecSync).toHaveBeenNthCalledWith(
       2,
@@ -147,7 +142,7 @@ describe('cleanupOrphans', () => {
   });
 
   it('does nothing when no orphans exist', () => {
-    mockExecSync.mockReturnValueOnce('[]');
+    mockExecSync.mockReturnValueOnce('');
 
     cleanupOrphans();
 
@@ -169,10 +164,7 @@ describe('cleanupOrphans', () => {
   });
 
   it('continues stopping remaining containers when one stop fails', () => {
-    const lsOutput = JSON.stringify([
-      { status: 'running', configuration: { id: 'nanoclaw-a-1' } },
-      { status: 'running', configuration: { id: 'nanoclaw-b-2' } },
-    ]);
+    const lsOutput = 'nanoclaw-a-1\nnanoclaw-b-2\n';
     mockExecSync.mockReturnValueOnce(lsOutput);
     // First stop fails
     mockExecSync.mockImplementationOnce(() => {
