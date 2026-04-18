@@ -77,8 +77,16 @@ function buildVolumeMounts(
       readonly: true,
     });
 
-    // .env shadowing is handled inside the container entrypoint via mount --bind
-    // (Apple Container only supports directory mounts, not file mounts like /dev/null)
+    // Shadow .env so the agent cannot read secrets from the mounted project root.
+    // Credentials are injected by the credential proxy, never exposed to containers.
+    const envFile = path.join(projectRoot, '.env');
+    if (fs.existsSync(envFile)) {
+      mounts.push({
+        hostPath: '/dev/null',
+        containerPath: '/workspace/project/.env',
+        readonly: true,
+      });
+    }
 
     // Main gets writable access to the store (SQLite DB) so it can
     // query and write to the database directly.
@@ -236,7 +244,10 @@ function buildVolumeMounts(
 function buildContainerArgs(
   mounts: VolumeMount[],
   containerName: string,
+<<<<<<< HEAD
   isMain: boolean,
+=======
+>>>>>>> upstream/skill/native-credential-proxy
 ): string[] {
   const args: string[] = ['run', '-i', '--rm', '--name', containerName];
 
@@ -307,7 +318,11 @@ export async function runContainerAgent(
   const mounts = buildVolumeMounts(group, input.isMain);
   const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
   const containerName = `nanoclaw-${safeName}-${Date.now()}`;
+<<<<<<< HEAD
   const containerArgs = buildContainerArgs(mounts, containerName, input.isMain);
+=======
+  const containerArgs = buildContainerArgs(mounts, containerName);
+>>>>>>> upstream/skill/native-credential-proxy
 
   logger.debug(
     {
