@@ -112,7 +112,7 @@ export function countDueMessages(db: Database.Database): number {
       .prepare(
         `SELECT COUNT(*) as count FROM messages_in
        WHERE status = 'pending'
-         AND (process_after IS NULL OR datetime(process_after) <= datetime('now'))`,
+         AND (process_after IS NULL OR datetime(process_after) <= strftime('%Y-%m-%dT%H:%M:%fZ','now'))`,
       )
       .get() as { count: number }
   ).count;
@@ -178,7 +178,7 @@ export function getDueOutboundMessages(db: Database.Database): OutboundMessage[]
   return db
     .prepare(
       `SELECT * FROM messages_out
-       WHERE (deliver_after IS NULL OR deliver_after <= datetime('now'))
+       WHERE (deliver_after IS NULL OR deliver_after <= strftime('%Y-%m-%dT%H:%M:%fZ','now'))
        ORDER BY timestamp ASC`,
     )
     .all() as OutboundMessage[];
@@ -198,13 +198,13 @@ export function getDeliveredIds(db: Database.Database): Set<string> {
 
 export function markDelivered(db: Database.Database, messageOutId: string, platformMessageId: string | null): void {
   db.prepare(
-    "INSERT OR IGNORE INTO delivered (message_out_id, platform_message_id, status, delivered_at) VALUES (?, ?, 'delivered', datetime('now'))",
+    "INSERT OR IGNORE INTO delivered (message_out_id, platform_message_id, status, delivered_at) VALUES (?, ?, 'delivered', strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
   ).run(messageOutId, platformMessageId ?? null);
 }
 
 export function markDeliveryFailed(db: Database.Database, messageOutId: string): void {
   db.prepare(
-    "INSERT OR IGNORE INTO delivered (message_out_id, platform_message_id, status, delivered_at) VALUES (?, NULL, 'failed', datetime('now'))",
+    "INSERT OR IGNORE INTO delivered (message_out_id, platform_message_id, status, delivered_at) VALUES (?, NULL, 'failed', strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
   ).run(messageOutId);
 }
 

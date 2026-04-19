@@ -37,7 +37,7 @@ export function getPendingMessages(): MessageInRow[] {
     .prepare(
       `SELECT * FROM messages_in
        WHERE status = 'pending'
-         AND (process_after IS NULL OR datetime(process_after) <= datetime('now'))
+         AND (process_after IS NULL OR datetime(process_after) <= strftime('%Y-%m-%dT%H:%M:%fZ','now'))
        ORDER BY timestamp ASC`,
     )
     .all() as MessageInRow[];
@@ -59,7 +59,7 @@ export function markProcessing(ids: string[]): void {
   if (ids.length === 0) return;
   const db = getOutboundDb();
   const stmt = db.prepare(
-    "INSERT OR REPLACE INTO processing_ack (message_id, status, status_changed) VALUES (?, 'processing', datetime('now'))",
+    "INSERT OR REPLACE INTO processing_ack (message_id, status, status_changed) VALUES (?, 'processing', strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
   );
   db.transaction(() => {
     for (const id of ids) stmt.run(id);
@@ -71,7 +71,7 @@ export function markCompleted(ids: string[]): void {
   if (ids.length === 0) return;
   const db = getOutboundDb();
   const stmt = db.prepare(
-    "INSERT OR REPLACE INTO processing_ack (message_id, status, status_changed) VALUES (?, 'completed', datetime('now'))",
+    "INSERT OR REPLACE INTO processing_ack (message_id, status, status_changed) VALUES (?, 'completed', strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
   );
   db.transaction(() => {
     for (const id of ids) stmt.run(id);
@@ -82,7 +82,7 @@ export function markCompleted(ids: string[]): void {
 export function markFailed(id: string): void {
   getOutboundDb()
     .prepare(
-      "INSERT OR REPLACE INTO processing_ack (message_id, status, status_changed) VALUES (?, 'failed', datetime('now'))",
+      "INSERT OR REPLACE INTO processing_ack (message_id, status, status_changed) VALUES (?, 'failed', strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
     )
     .run(id);
 }

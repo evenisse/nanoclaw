@@ -6,7 +6,7 @@
  */
 import path from 'path';
 
-import { DATA_DIR } from './config.js';
+import { DATA_DIR, DASHBOARD_SECRET, DASHBOARD_PORT } from './config.js';
 import { initDb } from './db/connection.js';
 import { runMigrations } from './db/migrations/index.js';
 import { getMessagingGroupsByChannel, getMessagingGroupAgents } from './db/messaging-groups.js';
@@ -146,6 +146,15 @@ async function main(): Promise<void> {
   // 6. Start host sweep
   startHostSweep();
   log.info('Host sweep started');
+
+  if (DASHBOARD_SECRET) {
+    const { startDashboard } = await import('@nanoco/nanoclaw-dashboard');
+    const { startDashboardPusher } = await import('./dashboard-pusher.js');
+    startDashboard({ port: DASHBOARD_PORT, secret: DASHBOARD_SECRET });
+    startDashboardPusher({ port: DASHBOARD_PORT, secret: DASHBOARD_SECRET, intervalMs: 60000 });
+  } else {
+    log.info('Dashboard disabled (no DASHBOARD_SECRET)');
+  }
 
   log.info('NanoClaw running');
 }
