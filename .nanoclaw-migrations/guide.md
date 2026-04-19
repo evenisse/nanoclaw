@@ -1,10 +1,10 @@
 # NanoClaw Migration Guide
 
 Generated: 2026-04-19
-Base: 71aab8c3166cc2b935c4f14d5c36bfdf2c682e70
-HEAD at generation: 76b1abbad02796a278bfc8b26abcf640d4899943
+Base: 57ad3591a15303cbfee6c9424ad95ea4f57672c2
+HEAD at generation: 7f843f59a866d9f4a855633615fa982265e03ce1
 Upstream branch: v2
-Upstream HEAD at generation: 96d765611230e7f4026126c0a92fa3dd4090fa16
+Upstream HEAD at generation: 57ad3591a15303cbfee6c9424ad95ea4f57672c2
 
 ---
 
@@ -19,24 +19,152 @@ No conflicts detected between installed skill branches.
 
 ---
 
-## Notes on DB File Relocations (upstream refactor)
+## Customizations
 
-Upstream/v2 moved several DB files as part of the modules refactor:
-- `src/db/agent-destinations.ts` → `src/modules/agent-to-agent/db/agent-destinations.ts`
-- `src/db/agent-group-members.ts` → `src/modules/permissions/db/agent-group-members.ts`
-- `src/db/user-dms.ts` → `src/modules/permissions/db/user-dms.ts`
-- `src/db/user-roles.ts` → `src/modules/permissions/db/user-roles.ts`
-- `src/db/users.ts` → `src/modules/permissions/db/users.ts`
+### Telegram channel integration
 
-When applying customizations, update imports accordingly.
+**Intent:** Add a Telegram bot channel with a custom pairing mechanism that requires the operator to echo a 4-digit code from the chat they're registering, preventing unauthorized registration of chats with a leaked bot token.
+
+**Files:**
+- `src/channels/telegram.ts` (new)
+- `src/channels/telegram-pairing.ts` (new)
+- `src/channels/telegram-markdown-sanitize.ts` (new)
+- `src/channels/telegram-markdown-sanitize.test.ts` (new)
+- `src/channels/telegram-pairing.test.ts` (new)
+- `src/channels/index.ts` (add import)
+- `package.json` (add dep)
+
+**How to apply:**
+
+1. Add dependency: `@chat-adapter/telegram@4.26.0` (pin exact version)
+
+2. Copy `src/channels/telegram.ts`, `src/channels/telegram-pairing.ts`, `src/channels/telegram-markdown-sanitize.ts` and their test files from the main tree into the new checkout.
+
+3. In `src/channels/index.ts`, add the auto-registration import:
+   ```typescript
+   import './telegram.js';
+   ```
+
+4. **Pairing flow** (`telegram-pairing.ts`):
+   - Generates one-time 4-digit codes stored in `data/telegram-pairings.json`
+   - Supports multiple pairing intents: `'main'` or `{ kind: 'wire-to'|'new-agent'; folder: string }`
+   - Message must be exactly 4 digits (optionally prefixed by `@botname ` for groups)
+   - On match: records chat, upserts user, auto-promotes to owner if instance has no owner
+   - Storage: JSON file with in-process mutex lock (single-process safety)
+   - Attempt tracking: caps failures per record at 10 attempts
+
+5. **Telegram adapter** (`telegram.ts`):
+   - Uses `createTelegramAdapter` from `@chat-adapter/telegram` with polling mode
+   - Wraps `onInbound` with pairing interceptor that runs before message routing
+   - Retry logic: exponential backoff (1s → 16s), max 5 attempts for cold-start DNS issues
+   - Fetches bot username via Telegram API `getMe` endpoint (cached)
+   - Creates Chat SDK bridge with custom text transform using the markdown sanitizer
+   - Fail-open design: pairing errors don't break normal message flow
+   - Environment variable: `TELEGRAM_BOT_TOKEN` (required)
+
+6. **Markdown sanitizer** (`telegram-markdown-sanitize.ts`):
+   - Workaround for `@chat-adapter/telegram` hardcoding legacy Markdown mode
+   - Converts CommonMark `**bold**` → legacy `*bold*` and `__italic__` → `_italic_`
+   - Replaces list bullets (`- item`) with Unicode bullet (`•`) to prevent unbalanced asterisks
+   - Protects code spans (backticks, fenced blocks) from conversion
+   - Strips unbalanced formatting chars to prevent Telegram rejection
 
 ---
 
-## Customizations
+### Discord channel integration
 
-### Fix timestamps ISO 8601 in session DBs
+**Intent:** Add Discord bot support via the standardized Chat SDK adapter pattern.
 
-**Intent:** All auto-generated SQLite timestamps use `strftime('%Y-%m-%dT%H:%M:%fZ','now')` instead of `datetime('now')` for consistency with ISO 8601. This was needed to make dashboard display consistent since channel adapters already emit ISO 8601.
+**Files:**
+- `src/channels/discord.ts` (new)
+- `src/channels/index.ts` (add import)
+- `package.json` (add dep)
+
+**How to apply:**
+
+1. Add dependency: `@chat-adapter/discord@4.26.0` (pin exact version)
+
+2. Copy `src/channels/discord.ts` from the main tree.
+
+3. In `src/channels/index.ts`, add:
+   ```typescript
+   import './discord.js';
+   ```
+
+4. The adapter extracts reply references via `referenced_message`, enables concurrent message processing and thread support.
+
+5. Environment variables: `DISCORD_BOT_TOKEN`, `DISCORD_PUBLIC_KEY`, `DISCORD_APPLICATION_ID`
+
+---
+
+### Dashboard integration
+
+**Intent:** Provide real-time visibility into agent groups, sessions, channels, users, and message activity via the `@nanoco/nanoclaw-dashboard` web UI. Optional — only activates when `DASHBOARD_SECRET` is set.
+
+**Files:**
+- `src/dashboard-pusher.ts` (new, ~581 lines)
+- `src/index.ts` (add conditional startup)
+- `src/config.ts` (add config exports)
+- `package.json` (add dep)
+
+**How to apply:**
+
+1. Add dependency: `@nanoco/nanoclaw-dashboard@^0.3.0`
+
+2. Copy `src/dashboard-pusher.ts` from the main tree (it collects snapshots from existing DB queries and POSTs them to `http://127.0.0.1:{DASHBOARD_PORT}/api/ingest`).
+
+3. In `src/config.ts`, add the new exported constants:
+   ```typescript
+   export const DASHBOARD_SECRET = process.env.DASHBOARD_SECRET ?? '';
+   export const DASHBOARD_PORT = Number(process.env.DASHBOARD_PORT ?? 3100);
+   ```
+
+4. In `src/index.ts`, add conditional dashboard startup after service init:
+   ```typescript
+   import { startDashboard } from '@nanoco/nanoclaw-dashboard';
+   import { startDashboardPusher } from './dashboard-pusher.js';
+   import { DASHBOARD_SECRET, DASHBOARD_PORT } from './config.js';
+
+   // ... at startup:
+   if (DASHBOARD_SECRET) {
+     startDashboard({ port: DASHBOARD_PORT, secret: DASHBOARD_SECRET });
+     startDashboardPusher({ port: DASHBOARD_PORT, secret: DASHBOARD_SECRET, intervalMs: 60000 });
+   }
+   ```
+
+5. **Key behaviours of `dashboard-pusher.ts`:**
+   - `startDashboardPusher(config)`: initializes with 60s interval, immediate push on start
+   - `stopDashboardPusher()`: cleanup on shutdown (wire into graceful shutdown)
+   - Snapshot covers: agent groups, sessions, channels, users, token usage, context windows, activity, message queue depths
+   - Log streaming: tails `logs/nanoclaw.log`, sends last 200 lines as backfill, polls every 2s for new lines, strips ANSI codes, handles rotation
+
+---
+
+### OneCLI API key passthrough
+
+**Intent:** Enable authenticated OneCLI requests by passing an API key to the OneCLI constructor.
+
+**Files:** `src/container-runner.ts`, `src/config.ts`
+
+**How to apply:**
+
+1. In `src/config.ts`, add:
+   ```typescript
+   export const ONECLI_API_KEY = process.env.ONECLI_API_KEY ?? '';
+   ```
+
+2. In `src/container-runner.ts`, import `ONECLI_API_KEY` from config and pass it to the `OneCLI` constructor:
+   ```typescript
+   import { ONECLI_API_KEY } from './config.js';
+   // ...
+   const onecli = new OneCLI({ apiKey: ONECLI_API_KEY });
+   ```
+
+---
+
+### ISO 8601 datetime standardization in SQLite
+
+**Intent:** Ensure all timestamps stored in SQLite are ISO 8601 UTC (with milliseconds), preventing timezone ambiguity.
 
 **Files:**
 - `container/agent-runner/src/db/messages-in.ts`
@@ -46,148 +174,18 @@ When applying customizations, update imports accordingly.
 
 **How to apply:**
 
-Replace every occurrence of `datetime('now')` in SQL strings with `strftime('%Y-%m-%dT%H:%M:%fZ','now')` in all four files (skip test files and migration schema defaults).
+Across all four files, replace every occurrence of `datetime('now')` with `strftime('%Y-%m-%dT%H:%M:%fZ','now')`.
+
+This affects: `process_after` comparisons, `deliver_after` comparisons, status tracking inserts (`processing_ack`, delivered records), and task scheduling.
 
 ---
 
-### ONECLI_API_KEY forwarding to OneCLI SDK
+### French documentation
 
-**Intent:** Read `ONECLI_API_KEY` from `.env` and forward it to the OneCLI SDK so containers are initialized with authenticated credentialed config.
+**Intent:** User-maintained French documentation covering the full NanoClaw architecture. Not required for functionality.
 
-**Files:** `src/config.ts`, `src/container-runner.ts`
+**Files:** `my-docs/` (11 `.md` files)
 
 **How to apply:**
 
-1. In `src/config.ts`, add `'ONECLI_API_KEY'` to the `readEnvFile([...])` call, then export:
-   ```typescript
-   export const ONECLI_API_KEY = process.env.ONECLI_API_KEY || envConfig.ONECLI_API_KEY;
-   ```
-
-2. In `src/container-runner.ts`, import `ONECLI_API_KEY` from `./config.js` and pass it when constructing the OneCLI client:
-   ```typescript
-   const onecli = new OneCLI({ url: ONECLI_URL, apiKey: ONECLI_API_KEY });
-   ```
-
----
-
-### Telegram channel adapter
-
-**Intent:** Full Telegram integration via Chat SDK bridge. Includes: retry/backoff for cold-start webhook registration, a **4-digit pairing protocol** (operator sends a code to link a Telegram chat to an agent group), and a Markdown sanitizer to fix the legacy `parse_mode=Markdown` behavior of `@chat-adapter/telegram`.
-
-**Files:**
-- `src/channels/telegram.ts` — main adapter + retry + webhook
-- `src/channels/telegram-pairing.ts` — pairing state machine
-- `src/channels/telegram-markdown-sanitize.ts` — CommonMark → Telegram legacy Markdown converter
-- `src/channels/telegram-pairing.test.ts` — tests for pairing
-- `src/channels/telegram-markdown-sanitize.test.ts` — tests for sanitizer
-
-**How to apply:**
-
-1. Copy all 5 files into `src/channels/`.
-
-2. Update imports in `telegram.ts` to use the new DB file locations (post-upstream refactor):
-   ```typescript
-   import { grantRole, hasAnyOwner } from '../modules/permissions/db/user-roles.js';
-   import { upsertUser } from '../modules/permissions/db/users.js';
-   ```
-
-3. In `src/channels/index.ts`, add:
-   ```typescript
-   import './telegram.js';
-   ```
-
-4. Required env var: `TELEGRAM_BOT_TOKEN`.
-5. Pairing state persisted in `data/telegram-pairings.json` (runtime, never touched during migration).
-
----
-
-### Discord channel adapter
-
-**Intent:** Discord integration via Chat SDK bridge. Simpler than Telegram — no pairing protocol, no retry logic.
-
-**Files:** `src/channels/discord.ts`
-
-**How to apply:**
-
-1. Copy `src/channels/discord.ts` into the new tree.
-
-2. In `src/channels/index.ts`, add:
-   ```typescript
-   import './discord.js';
-   ```
-
-3. Required env var: `DISCORD_BOT_TOKEN`. Optional: `DISCORD_PUBLIC_KEY`, `DISCORD_APPLICATION_ID`.
-
----
-
-### Dashboard state pusher
-
-**Intent:** Push periodic system state snapshots to the `@nanoco/nanoclaw-dashboard` monitoring UI. Enabled conditionally when `DASHBOARD_SECRET` is set in `.env`. State collected every 60 seconds.
-
-**Files:**
-- `src/dashboard-pusher.ts` — state collector (581 lines)
-- `src/config.ts` — DASHBOARD_SECRET + DASHBOARD_PORT exports
-- `src/index.ts` — conditional init
-
-**How to apply:**
-
-1. Copy `src/dashboard-pusher.ts` into the new tree.
-
-2. Update imports in `dashboard-pusher.ts` to use new DB file locations:
-   ```typescript
-   import { getDestinations } from './modules/agent-to-agent/db/agent-destinations.js';
-   import { getMembers } from './modules/permissions/db/agent-group-members.js';
-   import { getAllUsers, getUser } from './modules/permissions/db/users.js';
-   import { getUserRoles, getAdminsOfAgentGroup } from './modules/permissions/db/user-roles.js';
-   import { getUserDmsForUser } from './modules/permissions/db/user-dms.js';
-   ```
-
-3. In `src/config.ts`, add to `readEnvFile([...])`: `'DASHBOARD_SECRET'`, `'DASHBOARD_PORT'`, and export:
-   ```typescript
-   export const DASHBOARD_SECRET = process.env.DASHBOARD_SECRET || envConfig.DASHBOARD_SECRET;
-   export const DASHBOARD_PORT = parseInt(process.env.DASHBOARD_PORT || envConfig.DASHBOARD_PORT || '3100', 10);
-   ```
-
-4. In `src/index.ts`, add conditional init before `log.info('NanoClaw running')`:
-   ```typescript
-   import { DASHBOARD_SECRET, DASHBOARD_PORT } from './config.js'; // add to existing import
-
-   // In main():
-   if (DASHBOARD_SECRET) {
-     const { startDashboard } = await import('@nanoco/nanoclaw-dashboard');
-     const { startDashboardPusher } = await import('./dashboard-pusher.js');
-     startDashboard({ port: DASHBOARD_PORT, secret: DASHBOARD_SECRET });
-     startDashboardPusher({ port: DASHBOARD_PORT, secret: DASHBOARD_SECRET, intervalMs: 60000 });
-   } else {
-     log.info('Dashboard disabled (no DASHBOARD_SECRET)');
-   }
-   ```
-
----
-
-### Dependencies
-
-**Intent:** Add npm packages for Telegram, Discord, and dashboard integrations.
-
-**Files:** `package.json`
-
-**How to apply:**
-
-Add to `dependencies`:
-```json
-"@chat-adapter/discord": "^4.26.0",
-"@chat-adapter/telegram": "4.26.0",
-"@nanoco/nanoclaw-dashboard": "^0.3.0"
-```
-
-Note: `@chat-adapter/telegram` is pinned at exact version `4.26.0` — the pairing protocol depends on specific internal behavior.
-
----
-
-### Personal architecture documentation (my-docs/)
-
-**Intent:** French-language internal reference guide covering all NanoClaw v2 subsystems (11 documents). Personal reference.
-
-**Files:** `my-docs/` directory (all files)
-
-**How to apply:** Copy `my-docs/` verbatim from the source tree.
+Copy the entire `my-docs/` directory from the main tree as-is.
