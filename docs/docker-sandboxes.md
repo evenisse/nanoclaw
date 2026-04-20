@@ -31,6 +31,8 @@ The sandbox provides a MITM proxy at `host.docker.internal:3128` that handles ne
 Verify sandbox support:
 ```bash
 docker sandbox version
+# OR
+sbx version
 ```
 
 ## Step 1: Create the Sandbox
@@ -40,9 +42,13 @@ On your host machine:
 ```bash
 # Create a workspace directory
 mkdir -p ~/nanoclaw-workspace
+```
 
+```bash
 # Create a shell sandbox with the workspace mounted
-docker sandbox create shell ~/nanoclaw-workspace
+docker sandbox create --name nanoclaw shell ~/nanoclaw-workspace
+# OR
+sbx create --name nanoclaw shell --workspace ~/nanoclaw-workspace
 ```
 
 If you're using WhatsApp, configure proxy bypass so WhatsApp's Noise protocol isn't MITM-inspected:
@@ -58,7 +64,9 @@ Telegram does not need proxy bypass.
 
 Enter the sandbox:
 ```bash
-docker sandbox run shell-nanoclaw-workspace
+docker sandbox run nanoclaw
+# OR
+sbx run nanoclaw
 ```
 
 ## Step 2: Install Prerequisites
@@ -68,6 +76,8 @@ Inside the sandbox:
 ```bash
 sudo apt-get update && sudo apt-get install -y build-essential python3
 npm config set strict-ssl false
+curl -fsSL https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(which bash)" bash -
+source ~/.bashrc
 ```
 
 ## Step 3: Clone and Install NanoClaw
@@ -97,7 +107,7 @@ NanoClaw needs several patches to work inside a Docker Sandbox. These handle pro
 
 ### 4a. Dockerfile — proxy args for container image build
 
-`pnpm install` inside `docker build` fails with `SELF_SIGNED_CERT_IN_CHAIN` because the sandbox's MITM proxy presents its own certificate. Add proxy build args to `container/Dockerfile`:
+`npm install` inside `docker build` fails with `SELF_SIGNED_CERT_IN_CHAIN` because the sandbox's MITM proxy presents its own certificate. Add proxy build args to `container/Dockerfile`:
 
 Add these lines after the `FROM` line:
 
@@ -111,7 +121,7 @@ ARG npm_config_strict_ssl=true
 RUN npm config set strict-ssl ${npm_config_strict_ssl}
 ```
 
-And after the `RUN pnpm install` line:
+And after the `RUN npm install` line:
 
 ```dockerfile
 RUN npm config set strict-ssl true
