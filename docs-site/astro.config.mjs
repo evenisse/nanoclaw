@@ -31,6 +31,7 @@ export default defineConfig({
             { label: 'Wirer un canal à un agent', slug: 'guides/wirer-canal-agent' },
             { label: "Configurer l'engage_mode", slug: 'guides/engage-mode' },
             { label: 'Gérer les credentials OneCLI', slug: 'guides/credentials-onecli' },
+            { label: 'Monter des chemins hôte', slug: 'guides/monter-chemins-hote' },
             { label: 'Déboguer un agent', slug: 'guides/deboguer-agent' },
             { label: 'Gérer les utilisateurs et les droits', slug: 'guides/gerer-utilisateurs' },
             { label: 'Planifier des tâches récurrentes', slug: 'guides/planifier-taches' },
