@@ -203,6 +203,9 @@ registerChannelAdapter('telegram', {
     const telegramAdapter = createTelegramAdapter({
       botToken: token,
       mode: 'polling',
+      // retryDelayMs > timeout so a network drop can't cascade into a
+      // permanent Conflict loop (SDK max backoff = server timeout = race).
+      longPolling: { timeout: 10, retryDelayMs: 11000 },
     });
     const bridge = createChatSdkBridge({
       adapter: telegramAdapter,
