@@ -37,6 +37,7 @@ import {
 } from './db/session-db.js';
 import { log } from './log.js';
 import type { Session } from './types.js';
+import { emitDashboardEvent } from './dashboard/event-bus.js';
 
 function isPathInside(parent: string, child: string): boolean {
   const relative = path.relative(parent, child);
@@ -530,14 +531,33 @@ export function clearOutbox(agentGroupId: string, sessionId: string, messageId: 
 /** Mark a container as running for a session. */
 export function markContainerRunning(sessionId: string): void {
   updateSession(sessionId, { container_status: 'running', last_active: new Date().toISOString() });
+  const s = getSession(sessionId);
+  if (s)
+    emitDashboardEvent({
+      type: 'session-status',
+      sessionId,
+      agentGroupId: s.agent_group_id,
+      containerStatus: 'running',
+    });
 }
 
 /** Mark a container as idle for a session. */
 export function markContainerIdle(sessionId: string): void {
   updateSession(sessionId, { container_status: 'idle' });
+  const s = getSession(sessionId);
+  if (s)
+    emitDashboardEvent({ type: 'session-status', sessionId, agentGroupId: s.agent_group_id, containerStatus: 'idle' });
 }
 
 /** Mark a container as stopped for a session. */
 export function markContainerStopped(sessionId: string): void {
   updateSession(sessionId, { container_status: 'stopped' });
+  const s = getSession(sessionId);
+  if (s)
+    emitDashboardEvent({
+      type: 'session-status',
+      sessionId,
+      agentGroupId: s.agent_group_id,
+      containerStatus: 'stopped',
+    });
 }
