@@ -45,6 +45,7 @@ import {
 import { log } from './log.js';
 import { openInboundDb, openOutboundDb, openOutboundDbRw, inboundDbPath, heartbeatPath } from './session-manager.js';
 import { isContainerRunning, killContainer, wakeContainer } from './container-runner.js';
+import { emitDashboardEvent } from './dashboard/event-bus.js';
 import type { Session } from './types.js';
 
 /**
@@ -137,6 +138,7 @@ async function sweep(): Promise<void> {
     for (const session of sessions) {
       await sweepSession(session);
     }
+    emitDashboardEvent({ type: 'sweep-tick', timestamp: new Date().toISOString() });
   } catch (err) {
     log.error('Host sweep error', { err });
   }
@@ -190,6 +192,18 @@ async function sweepSession(session: Session): Promise<void> {
     // 3. Running-container SLA: absolute ceiling + per-claim stuck rules.
     if (alive && outDb) {
       enforceRunningContainerSla(inDb, outDb, session, agentGroup.id);
+      const cs = getContainerState(outDb);
+      if (cs?.current_tool) {
+        emitDashboardEvent({
+          type: 'tool-active',
+          sessionId: session.id,
+          agentGroupId: agentGroup.id,
+          tool: cs.current_tool,
+          startedAt: cs.tool_started_at ?? '',
+        });
+      } else {
+        emitDashboardEvent({ type: 'tool-done', sessionId: session.id, agentGroupId: agentGroup.id });
+      }
     }
 
     // 4. Crashed-container cleanup: processing rows left behind get retried.

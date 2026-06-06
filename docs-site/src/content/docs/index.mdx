@@ -1,0 +1,43 @@
+---
+title: NanoClaw — Documentation
+description: Documentation opérateur et utilisateur du système NanoClaw.
+template: splash
+hero:
+  title: NanoClaw
+  tagline: Votre assistant Claude personnel — léger, sécurisé, personnalisable.
+  actions:
+    - text: Premier tutoriel
+      link: /tutoriels/creer-agent-telegram/
+      icon: right-arrow
+      variant: primary
+    - text: Référence ncl
+      link: /reference/ncl/
+      icon: open-book
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Par où commencer ?
+
+<CardGrid>
+  <Card title="Tutoriels" icon="rocket">
+    Apprenez en faisant : créez votre premier agent, branchez Telegram, organisez plusieurs agents qui collaborent.
+
+    [→ Créer un agent Telegram](/tutoriels/creer-agent-telegram/)
+  </Card>
+  <Card title="Guides pratiques" icon="puzzle">
+    Résolvez une tâche précise : envoyer un message, wirer un canal, configurer l'engage_mode, gérer les credentials.
+
+    [→ Ajouter un canal](/guides/ajouter-canal/)
+  </Card>
+  <Card title="Référence" icon="list-format">
+    Toutes les commandes `ncl`, les modes de session, le tableau agents / canaux.
+
+    [→ Commandes ncl](/reference/ncl/)
+  </Card>
+  <Card title="Concepts" icon="information">
+    Comprendre l'architecture, le modèle d'entités, les rôles et les sessions.
+
+    [→ Architecture NanoClaw](/concepts/architecture/)
+  </Card>
+</CardGrid>
