@@ -2,9 +2,9 @@
 
 Generated: 2026-06-06T00:00:00Z
 Base: 9e8f256dd2f857d4cf2825f624453e048642408d
-HEAD at generation: 296f04178280fef7a48dba516c46dee438ce3d97
-Upstream at migration: b9141218ad5be62d98a826dbeda3f6984e62b3e5
-Last upgraded to: b9141218ad5be62d98a826dbeda3f6984e62b3e5 (v2.0.72)
+HEAD at generation: 4c813a5861d5e24cfa697b24f25d0addb4c1dc18
+Upstream at migration: d14472142d4ddcbb50e5f58ff09d63eb2f99bc20
+Last upgraded to: d14472142d4ddcbb50e5f58ff09d63eb2f99bc20 (v2.0.76)
 
 ## Applied Skills
 
