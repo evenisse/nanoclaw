@@ -28,6 +28,7 @@ function presentConfig(row: ContainerConfigRow): Record<string, unknown> {
     packages_npm: JSON.parse(row.packages_npm),
     additional_mounts: JSON.parse(row.additional_mounts),
     cli_scope: row.cli_scope,
+    env: row.env ? JSON.parse(row.env) : {},
     updated_at: row.updated_at,
   };
 }
@@ -241,13 +242,31 @@ registerResource({
           updates.cli_scope = scope;
         }
 
-        if (Object.keys(updates).length === 0) {
+        // --set-env KEY=VALUE / --unset-env KEY — merge into existing env object
+        const setEnv = args['set-env'] as string | string[] | undefined;
+        const unsetEnv = args['unset-env'] as string | string[] | undefined;
+        let envUpdated = false;
+        if (setEnv !== undefined || unsetEnv !== undefined) {
+          const current = JSON.parse(row.env ?? '{}') as Record<string, string>;
+          for (const pair of setEnv ? (Array.isArray(setEnv) ? setEnv : [setEnv]) : []) {
+            const eq = pair.indexOf('=');
+            if (eq < 1) throw new Error(`--set-env: expected KEY=VALUE, got: ${pair}`);
+            current[pair.slice(0, eq)] = pair.slice(eq + 1);
+          }
+          for (const key of unsetEnv ? (Array.isArray(unsetEnv) ? unsetEnv : [unsetEnv]) : []) {
+            delete current[key];
+          }
+          updateContainerConfigJson(id, 'env', current);
+          envUpdated = true;
+        }
+
+        if (Object.keys(updates).length === 0 && !envUpdated) {
           throw new Error(
-            'Nothing to update — provide at least one of: --provider, --model, --effort, --image-tag, --assistant-name, --max-messages-per-prompt, --cli-scope',
+            'Nothing to update — provide at least one of: --provider, --model, --effort, --image-tag, --assistant-name, --max-messages-per-prompt, --cli-scope, --set-env KEY=VALUE, --unset-env KEY',
           );
         }
 
-        updateContainerConfigScalars(id, updates);
+        if (Object.keys(updates).length > 0) updateContainerConfigScalars(id, updates);
 
         const updated = getContainerConfig(id)!;
         return presentConfig(updated);

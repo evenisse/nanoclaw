@@ -188,6 +188,7 @@ async function handleAgents(method: string, segs: string[], body: unknown, res: 
       packages_npm: JSON.stringify([]),
       additional_mounts: JSON.stringify([]),
       cli_scope: (b.cli_scope as string) ?? 'group',
+      env: JSON.stringify({}),
       updated_at: now,
     });
 
