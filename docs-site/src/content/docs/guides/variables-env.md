@@ -115,8 +115,19 @@ Ces variables affectent le comportement des containers Docker qui exécutent les
 | `MAX_MESSAGES_PER_PROMPT` | `10` | Nombre maximum de messages passés à Claude dans un seul prompt |
 | `CONTAINER_MAX_OUTPUT_SIZE` | `10485760` (10 MB) | Taille maximale de la sortie d'un container en octets |
 | `INSTALL_CJK_FONTS` | `false` | `true` pour inclure les polices CJK (chinois, japonais, coréen) dans l'image Docker (+200 MB). Nécessite un rebuild : `./container/build.sh` |
+
+### Variables d'environnement par agent
+
+Certaines variables sont lues par le container lui-même (runtime agent) et non par le host. Elles **ne peuvent pas être définies dans `.env`** — le host ne transmet pas son environnement aux containers. Elles doivent être configurées par agent via `ncl groups config update --set-env` :
+
+```bash
+ncl groups config update --id <group-id> --set-env CLAUDE_TRANSCRIPT_ROTATE_AGE_DAYS=3
+```
+
+| Variable | Défaut | Description |
+|----------|--------|-------------|
 | `CLAUDE_TRANSCRIPT_ROTATE_BYTES` | `12582912` (12 MB) | Taille maximale d'un transcript `.jsonl` avant rotation automatique. Au-delà, la session est archivée en Markdown dans `conversations/` et une nouvelle session démarre |
-| `CLAUDE_TRANSCRIPT_ROTATE_AGE_DAYS` | `14` | Âge maximal en jours d'une session avant rotation automatique (calculé depuis le premier message du transcript) |
+| `CLAUDE_TRANSCRIPT_ROTATE_AGE_DAYS` | `14` | Âge maximal en jours d'une session avant rotation automatique (calculé depuis le premier message du transcript). Utile pour limiter le contexte des agents hub très actifs |
 
 ---
 

@@ -40,6 +40,8 @@ L'approbation ne s'applique qu'aux appels `ncl` depuis **l'intérieur d'un conta
 | `ncl groups config get --id <id>` | Affiche la config container (modèle, MCP, packages…) |
 | `ncl groups config update --id <id> --model <modèle>` | Change le modèle Claude **[approbation]** |
 | `ncl groups config update --id <id> --cli-scope <disabled\|group\|global>` | Contrôle l'accès ncl depuis le container **[approbation]** |
+| `ncl groups config update --id <id> --set-env KEY=VALUE` | Définit une variable d'environnement injectée dans le container **[approbation]** |
+| `ncl groups config update --id <id> --unset-env KEY` | Supprime une variable d'environnement du container **[approbation]** |
 | `ncl groups config add-mcp-server --id <id> --name <nom> --command <cmd>` | Ajoute un serveur MCP **[approbation]** |
 | `ncl groups config remove-mcp-server --id <id> --name <nom>` | Retire un serveur MCP **[approbation]** |
 | `ncl groups config add-package --id <id> --apt <pkg>` | Ajoute un package apt **[approbation]** |
